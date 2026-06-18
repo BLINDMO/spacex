@@ -7,6 +7,7 @@ import Earth from './Earth';
 import Atmosphere from './Atmosphere';
 import Rocket from './Rocket';
 import Exhaust from './Exhaust';
+import LaunchPad from './LaunchPad';
 import Trajectory from './Trajectory';
 import OrbitOverlay from './OrbitOverlay';
 import CameraRig from './CameraRig';
@@ -27,6 +28,7 @@ export default function Scene() {
       <Starfield />
       <Earth />
       <Atmosphere />
+      <LaunchPad />
       <Trajectory />
       <OrbitOverlay />
       <Rocket />

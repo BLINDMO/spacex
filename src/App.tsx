@@ -3,7 +3,9 @@ import { useSimStore } from './store/useSimStore';
 import { useGameLoop } from './useGameLoop';
 import Scene from './three/Scene';
 import MissionSelect from './ui/MissionSelect';
-import VAB from './ui/VAB';
+import Builder from './ui/v2/Builder';
+import Scores from './ui/v2/Scores';
+import BottomNav from './ui/v2/BottomNav';
 import Countdown from './ui/Countdown';
 import Summary from './ui/Summary';
 import AttitudeIndicator from './ui/AttitudeIndicator';
@@ -32,8 +34,6 @@ function MissionBar() {
   );
 }
 
-/** Live 3D flight deck. Desktop shows persistent instrument columns; phones show a compact
- *  HUD + a toggleable data drawer, with a large touch control dock on every size. */
 function FlightDeck({ prelaunch }: { prelaunch: boolean }) {
   const [drawer, setDrawer] = useState(false);
   return (
@@ -54,12 +54,10 @@ function FlightDeck({ prelaunch }: { prelaunch: boolean }) {
           </div>
         ) : (
           <>
-            {/* Coached flight-director cue (leaves room for the DATA toggle on mobile) */}
             <div className="absolute top-0 left-0 right-14 lg:left-[300px] lg:right-[320px] z-10">
               <GuidanceCue />
             </div>
 
-            {/* Desktop instrument columns (only on genuinely large screens) */}
             <div className="hidden lg:flex absolute top-0 left-0 h-full w-[300px] flex-col gap-px overflow-y-auto bg-panel/70 border-r border-edge">
               <AttitudeIndicator />
               <Telemetry />
@@ -71,17 +69,14 @@ function FlightDeck({ prelaunch }: { prelaunch: boolean }) {
               <EventLog />
             </div>
 
-            {/* Mobile/tablet: floating DATA toggle */}
             <button
               onClick={() => setDrawer(true)}
               className="lg:hidden dock-btn absolute top-2 right-2 z-20 border-accent/60 text-accent bg-panel/90"
             >
               DATA ▾
             </button>
-
             {drawer && <div className="lg:hidden"><DataDrawer onClose={() => setDrawer(false)} /></div>}
 
-            {/* Control dock: bottom bar between columns on desktop, full-width on mobile */}
             <div className="absolute bottom-0 left-0 right-0 lg:left-[300px] lg:right-[320px] z-20">
               <ControlDock />
             </div>
@@ -95,12 +90,18 @@ function FlightDeck({ prelaunch }: { prelaunch: boolean }) {
 export default function App() {
   useGameLoop();
   const mode = useSimStore((s) => s.mode);
+  const showNav = mode === 'select' || mode === 'vab' || mode === 'scores';
+
   return (
-    <div className="h-full w-full bg-[#05070a] text-ink font-mono overflow-hidden">
-      {mode === 'select' && <MissionSelect />}
-      {mode === 'vab' && <VAB />}
-      {(mode === 'prelaunch' || mode === 'flight') && <FlightDeck prelaunch={mode === 'prelaunch'} />}
-      {mode === 'summary' && <Summary />}
+    <div className="flex h-full w-full flex-col bg-[#05070a] text-ink font-mono overflow-hidden">
+      <div className="relative min-h-0 flex-1">
+        {mode === 'select' && <MissionSelect />}
+        {mode === 'vab' && <Builder />}
+        {mode === 'scores' && <Scores />}
+        {(mode === 'prelaunch' || mode === 'flight') && <FlightDeck prelaunch={mode === 'prelaunch'} />}
+        {mode === 'summary' && <Summary />}
+      </div>
+      {showNav && <BottomNav />}
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { useSimStore } from '../store/useSimStore';
+import { useSimStore, isMissionUnlocked } from '../store/useSimStore';
 import { MISSIONS, SITES } from '../store/useSimStore';
 import { MISSION_LIST } from '../data/missions';
 import { SITE_LIST } from '../data/sites';
@@ -47,26 +47,31 @@ export default function MissionSelect() {
             {MISSION_LIST.map((m) => {
               const sel = m.id === missionId;
               const ms = scores[m.id];
+              const unlocked = isMissionUnlocked(scores, m.id);
               return (
                 <button
                   key={m.id}
                   type="button"
-                  onClick={() => selectMission(m.id)}
-                  className={`flex items-center gap-3 border-b border-grid px-4 py-3 text-left transition-colors active:bg-panel3 hover:bg-panel2 ${
-                    sel ? 'border-l-[3px] border-l-accent bg-panel2' : 'border-l-[3px] border-l-transparent'
-                  }`}
+                  disabled={!unlocked}
+                  onClick={() => unlocked && selectMission(m.id)}
+                  className={`flex items-center gap-3 border-b border-grid px-4 py-3 text-left transition-colors ${
+                    unlocked ? 'active:bg-panel3 hover:bg-panel2' : 'opacity-50'
+                  } ${sel ? 'border-l-[3px] border-l-accent bg-panel2' : 'border-l-[3px] border-l-transparent'}`}
                 >
                   <MissionGlyph mission={m} active={sel} />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">
                       <span className={`text-sm truncate ${sel ? 'text-accent' : 'text-ink'}`}>{m.name}</span>
                       <div className="flex shrink-0 items-center gap-1">
+                        {!unlocked && <span className="border border-edge px-1 text-[8px] tracking-[0.15em] text-dim">LOCKED</span>}
                         {m.tutorial && <span className="border border-edge px-1 text-[8px] tracking-[0.15em] text-amber">TUT</span>}
                         {m.crewed && <span className="border border-edge px-1 text-[8px] tracking-[0.15em] text-go">CREW</span>}
                       </div>
                     </div>
                     <div className="mt-0.5 flex items-center justify-between text-[10px] text-dim">
-                      <span className="truncate">{dist(m.targetApoapsis)} × {num(m.targetInclination, 1)}°</span>
+                      <span className="truncate">
+                        {unlocked ? `${dist(m.targetApoapsis)} × ${num(m.targetInclination, 1)}°` : 'Score 400+ on the prior mission to unlock'}
+                      </span>
                       {ms && <span className="tnum shrink-0 text-go">BEST {num(ms.total, 0)}</span>}
                     </div>
                   </div>

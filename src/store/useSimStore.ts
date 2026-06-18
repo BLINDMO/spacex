@@ -15,6 +15,15 @@ import { SITES } from '../data/sites';
 import { VEHICLES, loadVehicle } from '../data/vehicles';
 import { ENGINES } from '../data/engines';
 import {
+  type PartInstance,
+  PARTS,
+  buildDesign,
+  hasCrew,
+  mkInstance,
+  PRESET_ROCKETS,
+} from '../data/parts';
+import { MISSION_LIST } from '../data/missions';
+import {
   initFlight,
   stepFrame,
   deriveTelemetry,
@@ -48,6 +57,9 @@ interface SimStore {
 
   // ---- design slice ----
   design: VehicleDesign;
+  /** visual builder: parts stack, bottom (index 0) → top */
+  rocket: PartInstance[];
+  selectedPart: string | null; // uid of selected part in builder
 
   // ---- sim slice ----
   runtime: FlightRuntime | null;
@@ -80,6 +92,17 @@ interface SimStore {
   addStage: () => void;
   removeStage: (idx: number) => void;
   moveStage: (idx: number, dir: -1 | 1) => void;
+  // ---- visual builder actions ----
+  addPart: (defId: string) => void;
+  removePart: (uid: string) => void;
+  selectPart: (uid: string | null) => void;
+  setPartEngines: (uid: string, n: number) => void;
+  setPartScale: (uid: string, scale: number) => void;
+  movePart: (uid: string, dir: -1 | 1) => void;
+  loadRocketPreset: (key: string) => void;
+  clearRocket: () => void;
+  proceedFromBuilder: () => void;
+  goTo: (mode: GameMode) => void;
   enterPrelaunch: () => void;
   beginCountdown: () => void;
   tickCountdown: () => void;
@@ -104,6 +127,45 @@ function defaultDesignFor(missionId: MissionId): VehicleDesign {
   return loadVehicle(MISSIONS[missionId].recommendedVehicle);
 }
 
+// ── persistence + campaign progression ──────────────────────────────────────
+const SAVE_KEY = 'mc_save_v1';
+function loadScores(): Partial<Record<MissionId, MissionScore>> {
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (raw) return (JSON.parse(raw).scores ?? {}) as Partial<Record<MissionId, MissionScore>>;
+  } catch {
+    /* ignore */
+  }
+  return {};
+}
+function persistScores(scores: Partial<Record<MissionId, MissionScore>>): void {
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify({ scores }));
+  } catch {
+    /* ignore */
+  }
+}
+
+const PREREQ: Partial<Record<MissionId, MissionId[]>> = {
+  leo: ['tutorial'],
+  iss: ['tutorial'],
+  sso: ['leo'],
+  gto: ['leo'],
+  crew: ['iss'],
+  lunar: ['crew'],
+};
+
+/** A mission is unlocked when every prerequisite has been scored at 400+. */
+export function isMissionUnlocked(scores: Partial<Record<MissionId, MissionScore>>, id: MissionId): boolean {
+  const reqs = PREREQ[id];
+  if (!reqs) return true;
+  return reqs.every((r) => (scores[r]?.total ?? 0) >= 400);
+}
+
+function cloneRocket(r: PartInstance[]): PartInstance[] {
+  return r.map((p) => mkInstance(p.defId));
+}
+
 function freshStations(): Station[] {
   return [
     { name: 'GUIDANCE', status: 'pending' },
@@ -118,9 +180,11 @@ export const useSimStore = create<SimStore>((set, get) => ({
   mode: 'select',
   missionId: 'tutorial',
   siteId: MISSIONS.tutorial.recommendedSite,
-  scores: {},
+  scores: loadScores(),
 
   design: defaultDesignFor('tutorial'),
+  rocket: cloneRocket(PRESET_ROCKETS.vanguard),
+  selectedPart: null,
 
   runtime: null,
   sim: null,
@@ -150,7 +214,57 @@ export const useSimStore = create<SimStore>((set, get) => ({
 
   enterVAB: () => set({ mode: 'vab' }),
 
+  goTo: (mode) => set({ mode }),
+
   loadPreset: (id) => set({ design: loadVehicle(id) }),
+
+  // ---- visual builder ----
+  addPart: (defId) =>
+    set((s) => {
+      const inst = mkInstance(defId);
+      const def = PARTS[defId];
+      // sensible insertion: payload/fairing go on top, engines on bottom, else above engines
+      let rocket: PartInstance[];
+      if (def.cat === 'engine') rocket = [inst, ...s.rocket];
+      else rocket = [...s.rocket, inst];
+      return { rocket, selectedPart: inst.uid };
+    }),
+
+  removePart: (uid) =>
+    set((s) => ({ rocket: s.rocket.filter((p) => p.uid !== uid), selectedPart: null })),
+
+  selectPart: (uid) => set({ selectedPart: uid }),
+
+  setPartEngines: (uid, n) =>
+    set((s) => ({ rocket: s.rocket.map((p) => (p.uid === uid ? { ...p, engines: Math.max(1, Math.round(n)) } : p)) })),
+
+  setPartScale: (uid, scale) =>
+    set((s) => ({ rocket: s.rocket.map((p) => (p.uid === uid ? { ...p, scale: Math.max(0.5, Math.min(2, scale)) } : p)) })),
+
+  movePart: (uid, dir) =>
+    set((s) => {
+      const i = s.rocket.findIndex((p) => p.uid === uid);
+      const j = i + dir;
+      if (i < 0 || j < 0 || j >= s.rocket.length) return {};
+      const rocket = [...s.rocket];
+      [rocket[i], rocket[j]] = [rocket[j], rocket[i]];
+      return { rocket };
+    }),
+
+  loadRocketPreset: (key) => set({ rocket: cloneRocket(PRESET_ROCKETS[key] ?? PRESET_ROCKETS.vanguard), selectedPart: null }),
+
+  clearRocket: () => set({ rocket: [], selectedPart: null }),
+
+  proceedFromBuilder: () => {
+    const { rocket } = get();
+    const design = buildDesign(rocket);
+    if (design.stages.length === 0) {
+      set({ mode: 'vab' }); // nothing to fly yet — stay in the builder
+      return;
+    }
+    set({ design });
+    get().enterPrelaunch();
+  },
 
   setPayload: (kg) => set((s) => ({ design: { ...s.design, payloadMass: Math.max(0, kg) } })),
   setFairing: (kg) => set((s) => ({ design: { ...s.design, fairingMass: Math.max(0, kg) } })),
@@ -382,12 +496,16 @@ function bestScore(
   score: MissionScore,
 ): Partial<Record<MissionId, MissionScore>> {
   const prev = scores[id];
-  if (!prev || score.total > prev.total) return { ...scores, [id]: score };
+  if (!prev || score.total > prev.total) {
+    const next = { ...scores, [id]: score };
+    persistScores(next);
+    return next;
+  }
   return scores;
 }
 
 // Re-export catalog handles for UI convenience
-export { MISSIONS, SITES, VEHICLES, ENGINES, DEG };
+export { MISSIONS, SITES, VEHICLES, ENGINES, DEG, MISSION_LIST, PARTS, hasCrew, buildDesign };
 
 /** True if the current flight orbit meets the mission target (deploy enabled). */
 export function selectCanDeploy(s: SimStore): boolean {

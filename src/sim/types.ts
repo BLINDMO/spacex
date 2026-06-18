@@ -170,7 +170,7 @@ export interface DerivedTelemetry {
   dvRemaining: number; // m/s remaining across stack
 }
 
-export type GameMode = 'select' | 'vab' | 'prelaunch' | 'flight' | 'summary';
+export type GameMode = 'select' | 'vab' | 'prelaunch' | 'flight' | 'summary' | 'scores';
 
 export type CameraMode = 'follow' | 'pad' | 'orbit';
 

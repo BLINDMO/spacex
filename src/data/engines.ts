@@ -98,6 +98,18 @@ export const ENGINES: Record<string, Engine> = {
     mass: 100,
     seaLevelCapable: false,
   },
+  srb: {
+    id: 'srb',
+    name: 'Solid Booster',
+    propellant: 'rp1lox', // solid grain; modeled with dense propellant for tank/mass purposes
+    thrustSL: 3600000,
+    thrustVac: 4000000,
+    ispSL: 242,
+    ispVac: 268,
+    minThrottle: 1.0, // solids cannot throttle
+    mass: 9000,
+    seaLevelCapable: true,
+  },
 };
 
 export const ENGINE_LIST = Object.values(ENGINES);
