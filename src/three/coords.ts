@@ -10,8 +10,9 @@ export function toScene(x: number, y: number): [number, number, number] {
   return [x / SCALE, y / SCALE, 0];
 }
 
-// The rocket is physically tiny at this scale; exaggerate the model so staging is visible.
-export const ROCKET_VISUAL_HEIGHT = 1.4; // scene units for the whole stack
+// The rocket is physically tiny at this scale; exaggerate the model so it reads clearly and
+// staging is visible (especially on small phone screens).
+export const ROCKET_VISUAL_HEIGHT = 2.2; // scene units for the whole stack
 
 // Fixed sun direction in world space (for Earth lighting + scene key light).
 export const SUN_DIR: [number, number, number] = [0.6, 0.35, 0.72];

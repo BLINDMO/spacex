@@ -41,10 +41,13 @@ export default function OrbitOverlay() {
 
   const target = useMemo(() => {
     if (!runtime) return [];
+    // Only show the target orbit once climbing out of the lower atmosphere, otherwise the huge
+    // ellipse streaks across the close-up pad/ascent view and just looks like noise.
+    if (!derived || derived.altitude < 45e3) return [];
     const a = (runtime.targetApoR + runtime.targetPeriR) / 2;
     const e = (runtime.targetApoR - runtime.targetPeriR) / (runtime.targetApoR + runtime.targetPeriR);
     return ellipse(a, e, 0);
-  }, [runtime]);
+  }, [runtime, derived]);
 
   return (
     <>

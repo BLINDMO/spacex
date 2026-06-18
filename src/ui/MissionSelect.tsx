@@ -30,7 +30,7 @@ export default function MissionSelect() {
         <span className="text-[10px] tracking-[0.2em] text-dim">FLIGHT DIRECTOR CONSOLE</span>
       </div>
 
-      <div className="grid flex-1 grid-cols-[360px_1fr] gap-px bg-edge">
+      <div className="grid flex-1 grid-cols-1 md:grid-cols-[340px_1fr] gap-px bg-edge">
         {/* Mission list */}
         <div className="flex flex-col bg-panel">
           <div className="border-b border-edge px-3 py-2 text-[10px] tracking-[0.2em] text-dim">

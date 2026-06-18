@@ -1,4 +1,4 @@
-import { Suspense } from 'react';
+import { Suspense, useState } from 'react';
 import { useSimStore } from './store/useSimStore';
 import { useGameLoop } from './useGameLoop';
 import Scene from './three/Scene';
@@ -12,29 +12,33 @@ import StripCharts from './ui/StripCharts';
 import DvBudget from './ui/DvBudget';
 import StageBoard from './ui/StageBoard';
 import EventLog from './ui/EventLog';
-import FlightControls from './ui/FlightControls';
+import HudBar from './ui/HudBar';
+import ControlDock from './ui/ControlDock';
+import DataDrawer from './ui/DataDrawer';
 
-// Top bar shown over the live 3D scene during prelaunch/flight.
 function MissionBar() {
   const mission = useSimStore((s) => s.runtime?.mission ?? null);
   const site = useSimStore((s) => s.siteId);
+  const reset = useSimStore((s) => s.reset);
   return (
-    <div className="flex items-center justify-between px-4 py-1.5 bg-panel/90 border-b border-edge text-xs">
-      <div className="text-accent tracking-[0.35em]">MISSION CONTROL</div>
-      <div className="text-dim tnum">
-        {mission ? mission.name : '—'} <span className="text-edge">·</span> SITE {site.toUpperCase()}
+    <div className="flex items-center justify-between px-3 py-1 bg-panel/90 border-b border-edge text-[11px]">
+      <button onClick={reset} className="text-accent tracking-[0.3em] hover:text-ink">◂ MC</button>
+      <div className="text-dim tnum truncate ml-2">
+        {mission ? mission.name : '—'} <span className="text-edge">·</span> {site.toUpperCase()}
       </div>
     </div>
   );
 }
 
-/** The flight deck: live 3D scene with the instrument suite overlaid in a mission-ops layout. */
+/** Live 3D flight deck. Desktop shows persistent instrument columns; phones show a compact
+ *  HUD + a toggleable data drawer, with a large touch control dock on every size. */
 function FlightDeck({ prelaunch }: { prelaunch: boolean }) {
+  const [drawer, setDrawer] = useState(false);
   return (
     <div className="absolute inset-0 flex flex-col">
       <MissionBar />
+      <HudBar />
       <div className="relative flex-1 min-h-0">
-        {/* 3D scene fills the deck */}
         <div className="absolute inset-0">
           <Suspense fallback={<div className="h-full w-full grid place-items-center text-dim text-xs">INITIALIZING SCENE…</div>}>
             <Scene />
@@ -42,28 +46,36 @@ function FlightDeck({ prelaunch }: { prelaunch: boolean }) {
         </div>
 
         {prelaunch ? (
-          <div className="absolute inset-0 grid place-items-center pointer-events-none">
-            <div className="pointer-events-auto">
-              <Countdown />
-            </div>
+          <div className="absolute inset-0 flex items-start sm:items-center justify-center p-3 overflow-y-auto">
+            <Countdown />
           </div>
         ) : (
           <>
-            {/* Left instrument column */}
-            <div className="absolute top-0 left-0 h-full w-[300px] flex flex-col gap-px overflow-y-auto bg-panel/70 border-r border-edge">
+            {/* Desktop instrument columns */}
+            <div className="hidden md:flex absolute top-0 left-0 h-full w-[300px] flex-col gap-px overflow-y-auto bg-panel/70 border-r border-edge">
               <AttitudeIndicator />
               <Telemetry />
               <DvBudget />
             </div>
-            {/* Right instrument column */}
-            <div className="absolute top-0 right-0 h-full w-[320px] flex flex-col gap-px overflow-y-auto bg-panel/70 border-l border-edge">
+            <div className="hidden md:flex absolute top-0 right-0 h-full w-[320px] flex-col gap-px overflow-y-auto bg-panel/70 border-l border-edge">
               <StageBoard />
               <StripCharts />
               <EventLog />
             </div>
-            {/* Bottom control bar */}
-            <div className="absolute bottom-0 left-[300px] right-[320px]">
-              <FlightControls />
+
+            {/* Mobile: floating DATA toggle */}
+            <button
+              onClick={() => setDrawer(true)}
+              className="md:hidden dock-btn absolute top-2 right-2 z-20 border-accent/60 text-accent bg-panel/90"
+            >
+              DATA ▾
+            </button>
+
+            {drawer && <div className="md:hidden"><DataDrawer onClose={() => setDrawer(false)} /></div>}
+
+            {/* Control dock: bottom bar on desktop (between columns), full-width on mobile */}
+            <div className="absolute bottom-0 left-0 right-0 md:left-[300px] md:right-[320px] z-20">
+              <ControlDock />
             </div>
           </>
         )}
@@ -75,7 +87,6 @@ function FlightDeck({ prelaunch }: { prelaunch: boolean }) {
 export default function App() {
   useGameLoop();
   const mode = useSimStore((s) => s.mode);
-
   return (
     <div className="h-full w-full bg-[#05070a] text-ink font-mono overflow-hidden">
       {mode === 'select' && <MissionSelect />}

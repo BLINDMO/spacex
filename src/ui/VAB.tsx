@@ -61,7 +61,7 @@ export default function VAB() {
         ))}
       </div>
 
-      <div className="grid flex-1 grid-cols-[1fr_320px] gap-px bg-edge">
+      <div className="grid flex-1 grid-cols-1 md:grid-cols-[1fr_320px] gap-px bg-edge">
         {/* Stack editor */}
         <div className="flex flex-col gap-px overflow-auto bg-edge">
           {/* Payload + fairing */}

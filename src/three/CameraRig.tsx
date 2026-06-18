@@ -27,14 +27,17 @@ export default function CameraRig() {
     const radial = rocket.clone().normalize();
 
     if (mode === 'follow') {
+      // Chase cam: just off the flank and slightly behind/below the vehicle so it sits large
+      // in frame against the Earth limb, revealing the gravity turn as it pitches over.
       const side = new THREE.Vector3(dirV.y, -dirV.x, 0).normalize();
-      const dist = ROCKET_VISUAL_HEIGHT * 4.5;
+      const dist = ROCKET_VISUAL_HEIGHT * 3.0;
       tmpPos
         .copy(rocket)
-        .addScaledVector(side, dist * 0.7)
-        .addScaledVector(radial, dist * 0.35)
-        .addScaledVector(new THREE.Vector3(0, 0, 1), dist * 0.7);
-      curTarget.current.lerp(rocket, 0.2);
+        .addScaledVector(side, dist * 0.6)
+        .addScaledVector(radial, -dist * 0.1)
+        .addScaledVector(new THREE.Vector3(0, 0, 1), dist * 0.45);
+      // aim a touch ahead (along the nose) so the vehicle sits lower-centre
+      curTarget.current.lerp(rocket.clone().addScaledVector(dirV, ROCKET_VISUAL_HEIGHT * 0.4), 0.2);
     } else if (mode === 'pad') {
       // fixed near the launch site, tracking the vehicle as it rises
       const ground = new THREE.Vector3(EARTH_R, 0, 0);
