@@ -80,6 +80,7 @@ interface SimStore {
   countdown: number; // seconds remaining; >0 during prelaunch
   holding: boolean;
   stations: Station[];
+  flightMode: 'assist' | 'guided' | 'manual';
 
   // ---- actions ----
   selectMission: (id: MissionId) => void;
@@ -119,6 +120,7 @@ interface SimStore {
   setWarp: (w: TimeWarp) => void;
   togglePause: () => void;
   setCamera: (c: CameraMode) => void;
+  setFlightMode: (m: 'assist' | 'guided' | 'manual') => void;
   toSummary: () => void;
   reset: () => void;
 }
@@ -202,6 +204,7 @@ export const useSimStore = create<SimStore>((set, get) => ({
   countdown: 0,
   holding: false,
   stations: freshStations(),
+  flightMode: 'assist',
 
   selectMission: (id) =>
     set({
@@ -306,8 +309,8 @@ export const useSimStore = create<SimStore>((set, get) => ({
     }),
 
   enterPrelaunch: () => {
-    const { design, missionId, siteId } = get();
-    const { runtime, state } = initFlight(design, MISSIONS[missionId], SITES[siteId]);
+    const { design, missionId, siteId, flightMode } = get();
+    const { runtime, state } = initFlight(design, MISSIONS[missionId], SITES[siteId], flightMode);
     set({
       mode: 'prelaunch',
       runtime,
@@ -392,6 +395,7 @@ export const useSimStore = create<SimStore>((set, get) => ({
         trajectory,
         lastSampleT,
         score,
+        mode: 'summary', // straight to the debrief / post-mortem
         scores: bestScore(st.scores, st.missionId, score),
       });
       return;
@@ -420,12 +424,21 @@ export const useSimStore = create<SimStore>((set, get) => ({
       if (!s.sim || !s.runtime) return {};
       if (s.sim.activeStage >= s.runtime.stages.length) return {};
       const idx = s.sim.activeStage;
-      const sim = { ...s.sim, activeStage: idx + 1 };
+      // staging-timing quality: best when the dropped stage is nearly empty (≤2%),
+      // zero if separated with ≥15% propellant remaining (wasteful early staging).
+      const init = (s.runtime.stages[idx] as { propInitial: number }).propInitial || 1;
+      const frac = Math.max(0, (s.sim.stagePropRemaining[idx] ?? 0) / init);
+      const quality = Math.max(0, Math.min(1, 1 - Math.max(0, frac - 0.02) / 0.13));
+      const sim = { ...s.sim, activeStage: idx + 1, stageQualities: [...s.sim.stageQualities, quality] };
+      const tag = frac > 0.1 ? ' (early — fuel wasted)' : frac < 0.03 ? ' (clean)' : '';
       const label =
         idx + 1 < s.runtime.stages.length
-          ? `Stage ${idx + 1} separation (manual) · Stage ${idx + 2} ignition`
-          : 'Final stage separation (manual)';
-      return { sim, events: [...s.events, { t: s.sim.t, label, kind: 'info' as const }] };
+          ? `Stage ${idx + 1} separation${tag} · Stage ${idx + 2} ignition`
+          : `Final stage separation${tag}`;
+      return {
+        sim,
+        events: [...s.events, { t: s.sim.t, label, kind: frac > 0.1 ? ('warn' as const) : ('good' as const) }],
+      };
     }),
 
   jettisonFairing: () =>
@@ -454,11 +467,12 @@ export const useSimStore = create<SimStore>((set, get) => ({
   abort: () =>
     set((s) => {
       if (!s.sim || !s.runtime || !s.derived) return {};
-      const sim = { ...s.sim, failed: true, failReason: 'Mission aborted by Flight' };
+      const sim = { ...s.sim, failed: true, aborted: true, failReason: 'Mission aborted by Flight' };
       const score = evaluateMission(sim, s.derived, s.runtime);
       return {
         sim,
         score,
+        mode: 'summary',
         events: [...s.events, { t: s.sim.t, label: 'ABORT', kind: 'bad' as const }],
         scores: bestScore(s.scores, s.missionId, score),
       };
@@ -467,6 +481,13 @@ export const useSimStore = create<SimStore>((set, get) => ({
   setWarp: (w) => set({ warp: w }),
   togglePause: () => set((s) => ({ paused: !s.paused })),
   setCamera: (c) => set({ camera: c }),
+  setFlightMode: (m) =>
+    set((s) => ({
+      flightMode: m,
+      sim: s.sim
+        ? { ...s.sim, flightMode: m, autopilot: m === 'assist', manualPitch: s.sim.bodyPitch }
+        : s.sim,
+    })),
 
   toSummary: () => set({ mode: 'summary' }),
 

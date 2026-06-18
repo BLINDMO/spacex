@@ -87,9 +87,15 @@ export default function Summary() {
         {/* Score breakdown */}
         <div className="bg-panel p-4">
           <div className="mb-2 text-[10px] tracking-[0.2em] text-dim">SCORE BREAKDOWN</div>
-          <SubScore label="ACCURACY" value={score.accuracy} />
-          <SubScore label="EFFICIENCY" value={score.efficiency} />
-          <SubScore label="MARGIN" value={score.margin} />
+          <PointRow label="Orbit achieved" pts={score.orbitPts} max={400} />
+          <PointRow label="Inclination match" pts={score.incPts} max={200} />
+          <PointRow label="Fuel efficiency" pts={score.fuelPts} max={200} />
+          <PointRow label="Staging timing" pts={score.stagePts} max={100} />
+          <PointRow label="No aborts" pts={score.abortPts} max={100} />
+          <div className="mt-1 flex items-center justify-between border-t border-grid pt-1.5">
+            <span className="text-[11px] tracking-[0.1em] text-ink">TOTAL</span>
+            <span className="tnum text-[15px] text-accent">{num(score.total, 0)} / 1000</span>
+          </div>
 
           <div className="mb-2 mt-4 text-[10px] tracking-[0.2em] text-dim">ΔV LOSS BUDGET</div>
           <Bar label="GRAVITY" value={score.lossGravity} max={scaleMax} />
@@ -101,6 +107,14 @@ export default function Summary() {
           </div>
         </div>
       </div>
+
+      {/* What went wrong — teaching post-mortem */}
+      {!score.passed && (
+        <div className="border-t border-edge bg-panel px-6 py-3">
+          <div className="text-[10px] tracking-[0.2em] text-amber">WHAT WENT WRONG</div>
+          <div className="mt-1 text-[13px] leading-relaxed text-ink">{fixTip(score.reason)}</div>
+        </div>
+      )}
 
       {/* Actions */}
       <div className="flex gap-3 border-t border-edge bg-panel px-6 py-4">
@@ -143,21 +157,37 @@ function Compare({
   );
 }
 
-function SubScore({ label, value }: { label: string; value: number }) {
+function PointRow({ label, pts, max }: { label: string; pts: number; max: number }) {
+  const frac = Math.max(0, Math.min(1, pts / max));
+  const tone = frac > 0.85 ? 'bg-go' : frac > 0.4 ? 'bg-accent' : 'bg-amber';
   return (
     <div className="mb-2">
       <div className="mb-[2px] flex items-center justify-between">
-        <span className="text-[9px] tracking-[0.12em] text-dim">{label}</span>
-        <span className="tnum text-[11px] text-ink">{pct(value, 0)}</span>
+        <span className="text-[11px] text-dim">{label}</span>
+        <span className="tnum text-[12px] text-ink">{pts} / {max}</span>
       </div>
       <div className="h-2 w-full bg-panel3">
-        <div
-          style={{ width: `${Math.max(0, Math.min(1, value)) * 100}%` }}
-          className="h-full bg-accent"
-        />
+        <div style={{ width: `${frac * 100}%` }} className={`h-full ${tone}`} />
       </div>
     </div>
   );
+}
+
+function fixTip(reason: string): string {
+  const r = reason.toLowerCase();
+  if (r.includes('g-limit') || r.includes('g sustained') || r.includes('crew exceeded'))
+    return 'Throttle back during peak ascent — for crewed flights keep sustained G-force below 4.5. Watch the G gauge and ease the throttle as it climbs.';
+  if (r.includes('q·α') || r.includes('broke up'))
+    return 'You pushed too hard through Max-Q. Ease the throttle to ~70% around 10–14 km altitude, then throttle back up once dynamic pressure drops.';
+  if (r.includes('insufficient'))
+    return 'Not enough Δv to reach orbit. Add propellant or engines in the builder, stage more cleanly, or fly a more efficient gravity turn.';
+  if (r.includes('periapsis below'))
+    return 'Your periapsis is inside the atmosphere, so the orbit will decay. Keep burning prograde at apoapsis to raise periapsis above 100 km before deploying.';
+  if (r.includes('impacted'))
+    return 'The vehicle pitched over too early and fell back. Hold a steeper pitch in the first ~60 s, then turn gradually.';
+  if (r.includes('apoapsis off') || r.includes('periapsis off') || r.includes('inclination off'))
+    return 'Close! Trim your burn — cut throttle as the orbit reaches the target, and match the inclination by launching toward the right azimuth.';
+  return 'Review the telemetry and try a cleaner ascent. Small throttle and staging adjustments make a big difference.';
 }
 
 function Bar({ label, value, max }: { label: string; value: number; max: number }) {

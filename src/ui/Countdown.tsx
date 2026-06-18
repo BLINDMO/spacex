@@ -23,6 +23,8 @@ export default function Countdown() {
   const beginCountdown = useSimStore((s) => s.beginCountdown);
   const toggleHold = useSimStore((s) => s.toggleHold);
   const launch = useSimStore((s) => s.launch);
+  const flightMode = useSimStore((s) => s.flightMode);
+  const setFlightMode = useSimStore((s) => s.setFlightMode);
 
   const mission = MISSIONS[missionId];
   const site = SITES[siteId];
@@ -66,6 +68,27 @@ export default function Countdown() {
         </div>
         <div className={`mt-2 text-[10px] ${allGo ? 'text-go' : 'text-dim'}`}>
           {allGo ? '✓ ALL STATIONS GO FOR LAUNCH' : 'Stations report GO as the count proceeds.'}
+        </div>
+      </div>
+
+      {/* flight mode picker */}
+      <div className="border-t border-edge px-3 py-2">
+        <div className="mb-1 text-[10px] tracking-[0.2em] text-dim">FLIGHT MODE</div>
+        <div className="flex gap-1.5">
+          {(['assist', 'guided', 'manual'] as const).map((m) => (
+            <button
+              key={m}
+              onClick={() => setFlightMode(m)}
+              className={`dock-btn flex-1 ${flightMode === m ? 'border-accent text-accent' : ''}`}
+            >
+              {m.toUpperCase()}
+            </button>
+          ))}
+        </div>
+        <div className="mt-1 text-[10px] text-dim">
+          {flightMode === 'assist' && 'Autopilot flies attitude. You manage throttle & staging.'}
+          {flightMode === 'guided' && 'Fly to the target pitch yourself. You handle everything.'}
+          {flightMode === 'manual' && 'Full manual control. No aids. Highest skill, best score.'}
         </div>
       </div>
 

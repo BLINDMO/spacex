@@ -121,6 +121,17 @@ export interface SimState {
   manualThrottle: number;
   /** last commanded throttle actually applied, 0..1 */
   throttle: number;
+  /** flight skill mode: assist (auto attitude, you stage+throttle), guided (you fly to the
+   *  reticle), manual (full control), or auto (full autopilot — used by the headless test) */
+  flightMode: 'assist' | 'guided' | 'manual' | 'auto';
+  /** autopilot's suggested throttle for the current phase (shown to the player) */
+  suggestedThrottle: number;
+  /** autopilot's target pitch this tick (the reticle in guided/manual), rad above horizon */
+  targetPitch: number;
+  /** quality 0..1 of each manual stage separation (timing window) */
+  stageQualities: number[];
+  /** true once any abort/structural-failure event has occurred */
+  aborted: boolean;
   // flags
   launched: boolean;
   fairingJettisoned: boolean;
@@ -186,6 +197,12 @@ export interface MissionScore {
   passed: boolean;
   reason: string;
   total: number; // 0..1000
+  // transparent breakdown (sum = total)
+  orbitPts: number; // /400
+  incPts: number; // /200
+  fuelPts: number; // /200
+  stagePts: number; // /100
+  abortPts: number; // /100
   accuracy: number;
   efficiency: number;
   margin: number;

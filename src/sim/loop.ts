@@ -79,6 +79,7 @@ export function initFlight(
   vehicle: VehicleDesign,
   mission: Mission,
   site: LaunchSite,
+  flightMode: SimState['flightMode'] = 'auto',
 ): { runtime: FlightRuntime; state: SimState } {
   const stages: RuntimeStage[] = vehicle.stages.map((s) => {
     const e = ENGINES[s.engineId];
@@ -137,10 +138,15 @@ export function initFlight(
     t: 0,
     bodyPitch: 90 * DEG,
     autoPhase: 0,
-    autopilot: true,
+    autopilot: flightMode === 'assist' || flightMode === 'auto', // attitude flown by autopilot
     manualPitch: 90 * DEG,
     manualThrottle: 1,
     throttle: 1,
+    flightMode,
+    suggestedThrottle: 1,
+    targetPitch: 90 * DEG,
+    stageQualities: [],
+    aborted: false,
     launched: false,
     fairingJettisoned: false,
     payloadDeployed: false,
@@ -244,19 +250,31 @@ function substep(
   let cmdThrottle: number;
   let cutoff = false;
   const hasEngine = state.activeStage < rt.stages.length;
-  if (state.autopilot) {
-    const g = autoGuidance(state.x, state.y, state.vx, state.vy, q, state.autoPhase, {
-      targetPeriR: rt.targetPeriR,
-      targetApoR: rt.targetApoR,
-      transfer: rt.transfer,
-      hasActiveEngine: hasEngine,
-      omegaPlane: rt.omegaPlane,
-    });
-    state.autoPhase = g.phase;
+  const fm = state.flightMode;
+  // Always run the autopilot so we can drive attitude (assist/auto) and publish a target
+  // reticle + suggested throttle for the player (guided/manual).
+  const g = autoGuidance(state.x, state.y, state.vx, state.vy, q, state.autoPhase, {
+    targetPeriR: rt.targetPeriR,
+    targetApoR: rt.targetApoR,
+    transfer: rt.transfer,
+    hasActiveEngine: hasEngine,
+    omegaPlane: rt.omegaPlane,
+  });
+  state.autoPhase = g.phase;
+  state.targetPitch = g.desiredPitch;
+  state.suggestedThrottle = g.cutoff ? 0 : g.throttle;
+  if (fm === 'auto') {
+    // full autopilot (headless test / optional): attitude, throttle and staging all auto
     desiredPitch = g.desiredPitch;
     cmdThrottle = g.throttle;
     cutoff = g.cutoff;
+  } else if (fm === 'assist') {
+    // autopilot flies attitude; the player owns throttle (and staging)
+    desiredPitch = g.desiredPitch;
+    cmdThrottle = state.manualThrottle;
+    cutoff = state.manualThrottle <= 0.001;
   } else {
+    // guided / manual: the player flies attitude to the reticle and owns throttle
     desiredPitch = state.manualPitch;
     cmdThrottle = state.manualThrottle;
     cutoff = state.manualThrottle <= 0.001;
@@ -282,8 +300,9 @@ function substep(
   if (stage && throttle > 0.001 && state.stagePropRemaining[state.activeStage] > 0) {
     // clamp to engine minimum throttle
     throttle = Math.max(stage.minThrottle, Math.min(1, throttle));
-    // G-load limiting throttle (autopilot): protect structure/crew by capping sensed accel.
-    if (state.autopilot) {
+    // G-load limiting throttle (full autopilot only): protect structure/crew by capping
+    // sensed accel. In player modes managing G is part of the skill.
+    if (fm === 'auto') {
       const gCap = (rt.crewed ? CREW_G_LIMIT * 0.9 : 3.5) * G0;
       const provisional = engineOutput(
         stage.thrustVac, stage.ispVac, stage.ispSL, stage.thrustSL, pFrac, throttle,
@@ -367,19 +386,27 @@ function substep(
     events.push({ t: state.t, label: 'Fairing jettison', kind: 'info' });
   }
 
-  // ---- Staging: drop empty firing stage --------------------------------
+  // ---- Staging --------------------------------------------------------
   if (stage && state.stagePropRemaining[state.activeStage] <= 0) {
     const idx = state.activeStage;
-    if (idx === 0) events.push({ t: state.t, label: 'MECO', kind: 'info' });
-    state.activeStage += 1;
-    if (state.activeStage < rt.stages.length) {
+    if (fm === 'auto') {
+      // full autopilot drops the empty stage automatically
+      if (idx === 0) events.push({ t: state.t, label: 'MECO', kind: 'info' });
+      state.activeStage += 1;
+      state.stageQualities.push(1);
+      if (state.activeStage < rt.stages.length) {
+        events.push({ t: state.t, label: `Stage ${idx + 1} separation · Stage ${idx + 2} ignition`, kind: 'info' });
+      } else {
+        events.push({ t: state.t, label: 'SECO — final stage depleted', kind: 'info' });
+      }
+    } else if (!flagged(state, `empty${idx}`)) {
+      // player modes: prompt the player to stage (the dead stage produces no thrust)
+      const last = idx >= rt.stages.length - 1;
       events.push({
         t: state.t,
-        label: `Stage ${idx + 1} separation · Stage ${idx + 2} ignition`,
-        kind: 'info',
+        label: last ? 'SECO — final stage depleted' : `Stage ${idx + 1} depleted — SEPARATE NOW`,
+        kind: last ? 'info' : 'warn',
       });
-    } else {
-      events.push({ t: state.t, label: 'SECO — final stage depleted', kind: 'info' });
     }
   }
 
@@ -587,14 +614,25 @@ export function evaluateMission(
   else if (!crewOk) reason = `Crew exceeded ${CREW_G_LIMIT} g`;
   else reason = 'Target orbit achieved — payload delivered';
 
-  const total = passed
-    ? Math.round(1000 * (0.55 * accuracy + 0.3 * efficiency + 0.15 * marginScore))
-    : Math.round(300 * accuracy);
+  // ── transparent score breakdown (Orbit 400 / Inclination 200 / Fuel 200 / Staging 100 / No-abort 100)
+  const orbitPts = Math.round(400 * ((apoScore + periScore) / 2) * (d.stable ? 1 : 0.4));
+  const incPts = Math.round(200 * incScore);
+  const fuelPts = Math.round(200 * marginScore);
+  const stagePts = Math.round(
+    100 * (state.stageQualities.length ? state.stageQualities.reduce((a, b) => a + b, 0) / state.stageQualities.length : 1),
+  );
+  const abortPts = state.aborted || state.failed ? 0 : 100;
+  const total = orbitPts + incPts + fuelPts + stagePts + abortPts;
 
   return {
     passed,
     reason,
     total,
+    orbitPts,
+    incPts,
+    fuelPts,
+    stagePts,
+    abortPts,
     accuracy,
     efficiency,
     margin: marginScore,
