@@ -10,6 +10,14 @@ interface Slot {
   cx: number;
 }
 
+export interface ClientSlot {
+  uid: string;
+  i: number; // array index (bottom→top)
+  yTop: number; // client Y
+  yBot: number; // client Y
+  yMid: number; // client Y
+}
+
 /** Canvas 2D renderer of an assembled rocket stack (bottom index 0 → top). Real-ish
  *  proportions, engine clusters, fuel-fill tanks, gold interstages, clamshell fairing.
  *  Tapping a part calls onPick with its uid. */
@@ -17,10 +25,16 @@ export default function RocketCanvas({
   rocket,
   selected,
   onPick,
+  onLayout,
+  snapY,
+  dragUid,
 }: {
   rocket: PartInstance[];
   selected?: string | null;
   onPick?: (uid: string) => void;
+  onLayout?: (slots: ClientSlot[]) => void;
+  snapY?: number | null;
+  dragUid?: string | null;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const slotsRef = useRef<Slot[]>([]);
@@ -78,6 +92,15 @@ export default function RocketCanvas({
     }
     slotsRef.current = slots;
 
+    // dim the part being dragged
+    if (dragUid) {
+      const s = slots.find((s) => s.uid === dragUid);
+      if (s) {
+        ctx.fillStyle = 'rgba(5,7,10,0.55)';
+        ctx.fillRect(s.cx - s.w / 2 - 4, s.yTop - 2, s.w + 8, s.yBot - s.yTop + 4);
+      }
+    }
+
     // selection outline
     if (selected) {
       const s = slots.find((s) => s.uid === selected);
@@ -89,7 +112,41 @@ export default function RocketCanvas({
         ctx.setLineDash([]);
       }
     }
-  }, [rocket, selected]);
+
+    const rect = canvas.getBoundingClientRect();
+
+    // snap indicator line (drop target while dragging)
+    if (snapY != null) {
+      const ly = Math.max(margin, Math.min(cssH - margin, snapY - rect.top));
+      ctx.strokeStyle = '#39c0d6';
+      ctx.lineWidth = 2.5;
+      ctx.setLineDash([8, 5]);
+      ctx.beginPath();
+      ctx.moveTo(cssW * 0.12, ly);
+      ctx.lineTo(cssW * 0.88, ly);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      // little arrows
+      ctx.fillStyle = '#39c0d6';
+      ctx.beginPath();
+      ctx.moveTo(cssW * 0.12, ly - 5);
+      ctx.lineTo(cssW * 0.12 + 8, ly);
+      ctx.lineTo(cssW * 0.12, ly + 5);
+      ctx.fill();
+    }
+
+    if (onLayout) {
+      onLayout(
+        slots.map((s) => ({
+          uid: s.uid,
+          i: rocket.findIndex((p) => p.uid === s.uid),
+          yTop: rect.top + s.yTop,
+          yBot: rect.top + s.yBot,
+          yMid: rect.top + (s.yTop + s.yBot) / 2,
+        })),
+      );
+    }
+  }, [rocket, selected, snapY, dragUid, onLayout]);
 
   function handlePick(e: React.PointerEvent<HTMLCanvasElement>) {
     if (!onPick) return;

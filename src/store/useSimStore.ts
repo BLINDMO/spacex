@@ -95,6 +95,8 @@ interface SimStore {
   moveStage: (idx: number, dir: -1 | 1) => void;
   // ---- visual builder actions ----
   addPart: (defId: string) => void;
+  addPartAt: (defId: string, index: number) => void;
+  movePartTo: (uid: string, index: number) => void;
   removePart: (uid: string) => void;
   selectPart: (uid: string | null) => void;
   setPartEngines: (uid: string, n: number) => void;
@@ -231,6 +233,26 @@ export const useSimStore = create<SimStore>((set, get) => ({
       if (def.cat === 'engine') rocket = [inst, ...s.rocket];
       else rocket = [...s.rocket, inst];
       return { rocket, selectedPart: inst.uid };
+    }),
+
+  addPartAt: (defId, index) =>
+    set((s) => {
+      const inst = mkInstance(defId);
+      const rocket = [...s.rocket];
+      const i = Math.max(0, Math.min(rocket.length, Math.round(index)));
+      rocket.splice(i, 0, inst);
+      return { rocket, selectedPart: inst.uid };
+    }),
+
+  movePartTo: (uid, index) =>
+    set((s) => {
+      const from = s.rocket.findIndex((p) => p.uid === uid);
+      if (from < 0) return {};
+      const rocket = [...s.rocket];
+      const [item] = rocket.splice(from, 1);
+      const i = Math.max(0, Math.min(rocket.length, Math.round(index)));
+      rocket.splice(i, 0, item);
+      return { rocket };
     }),
 
   removePart: (uid) =>

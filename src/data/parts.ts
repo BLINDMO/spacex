@@ -92,6 +92,9 @@ export function buildDesign(rocket: PartInstance[]): VehicleDesign {
   let payloadMass = 0;
   let fairingMass = 0;
   let cur: StageDesign | null = null;
+  // tanks/structure dropped below the first engine still count — attach them to the first stage
+  let pendingProp = 0;
+  let pendingDry = 0;
 
   for (const inst of rocket) {
     const def = PARTS[inst.defId];
@@ -102,25 +105,33 @@ export function buildDesign(rocket: PartInstance[]): VehicleDesign {
         name: `Stage ${stages.length + 1}`,
         engineId: def.engineId!,
         engineCount: inst.engines ?? 1,
-        propMass: 0,
-        dryMass: 0,
+        propMass: pendingProp,
+        dryMass: pendingDry,
       };
+      pendingProp = 0;
+      pendingDry = 0;
       stages.push(cur);
     } else if (def.cat === 'tank') {
       const scale = inst.scale ?? 1;
       const prop = (def.propMass ?? 0) * scale;
+      const dry = def.mass * scale + prop * 0.045; // tank structural mass
       if (cur) {
         cur.propMass += prop;
-        cur.dryMass += def.mass * scale + prop * 0.045; // tank structural mass
+        cur.dryMass += dry;
+      } else {
+        pendingProp += prop;
+        pendingDry += dry;
       }
     } else if (def.cat === 'structural') {
       if (cur) cur.dryMass += def.mass;
+      else pendingDry += def.mass;
     } else if (def.cat === 'fairing') {
       fairingMass += def.mass;
     } else if (def.cat === 'payload') {
       payloadMass += def.mass;
     }
   }
+  // any leftover pending tanks (no engine at all) — ignore; readiness will flag "no engine"
 
   return { id: 'custom', name: 'Custom Vehicle', stages, payloadMass, fairingMass };
 }
