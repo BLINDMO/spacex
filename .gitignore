@@ -1,7 +1,0 @@
-node_modules
-dist
-*.local
-.DS_Store
-.vite
-e2e.mjs
-/tmp
