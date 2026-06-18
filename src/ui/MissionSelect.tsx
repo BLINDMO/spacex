@@ -4,6 +4,7 @@ import { MISSION_LIST } from '../data/missions';
 import { SITE_LIST } from '../data/sites';
 import { VEHICLES } from '../data/vehicles';
 import { dist, num } from './format';
+import StepNav from './StepNav';
 
 /** Full-screen mission selection / briefing screen. */
 export default function MissionSelect() {
@@ -13,6 +14,14 @@ export default function MissionSelect() {
   const selectMission = useSimStore((s) => s.selectMission);
   const setSite = useSimStore((s) => s.setSite);
   const enterVAB = useSimStore((s) => s.enterVAB);
+  const loadPreset = useSimStore((s) => s.loadPreset);
+  const enterPrelaunch = useSimStore((s) => s.enterPrelaunch);
+
+  const quickStart = () => {
+    loadPreset(mission.recommendedVehicle);
+    setSite(mission.recommendedSite);
+    enterPrelaunch();
+  };
 
   const mission = MISSIONS[missionId];
   const site = SITES[siteId];
@@ -22,12 +31,10 @@ export default function MissionSelect() {
   return (
     <div className="crt flex h-full w-full flex-col overflow-auto bg-[#05070a] text-ink">
       {/* Title bar */}
-      <div className="flex items-center justify-between border-b border-edge bg-panel px-4 py-2">
-        <div className="flex items-center gap-3">
-          <span className="text-sm tracking-[0.35em] text-accent">MISSION CONTROL</span>
-          <span className="text-[10px] tracking-[0.2em] text-dim">ORBITAL LAUNCH SIMULATOR</span>
-        </div>
-        <span className="text-[10px] tracking-[0.2em] text-dim">FLIGHT DIRECTOR CONSOLE</span>
+      <div className="flex flex-wrap items-center gap-2 border-b border-edge bg-panel px-4 py-2">
+        <span className="text-sm tracking-[0.35em] text-accent">MISSION CONTROL</span>
+        <span className="hidden sm:inline text-[10px] tracking-[0.2em] text-dim">ORBITAL LAUNCH SIMULATOR</span>
+        <div className="ml-auto"><StepNav current="mission" /></div>
       </div>
 
       <div className="grid flex-1 grid-cols-1 md:grid-cols-[340px_1fr] gap-px bg-edge">
@@ -157,16 +164,18 @@ export default function MissionSelect() {
             </div>
           </div>
 
-          <div className="bg-panel p-4">
-            <button
-              type="button"
-              onClick={enterVAB}
-              className="rounded-[2px] border border-accent bg-accent/10 px-5 py-2 text-[12px] uppercase tracking-[0.2em] text-accent transition-colors hover:bg-accent/20"
-            >
-              PROCEED TO VEHICLE ASSEMBLY ▸
-            </button>
-            <div className="mt-2 text-[10px] text-dim">
-              Selected site: {site ? site.name : siteId}
+          <div className="bg-panel p-4 flex flex-col gap-2">
+            <div className="flex flex-col sm:flex-row gap-2">
+              <button onClick={quickStart} className="dock-btn flex-1 min-h-[48px] border-go text-go text-[12px] tracking-[0.15em]">
+                QUICK START — RECOMMENDED SETUP ▸
+              </button>
+              <button onClick={enterVAB} className="dock-btn flex-1 min-h-[48px] border-accent text-accent text-[12px] tracking-[0.15em]">
+                BUILD VEHICLE ▸
+              </button>
+            </div>
+            <div className="text-[10px] text-dim">
+              Quick Start flies the recommended {VEHICLES[mission.recommendedVehicle]?.name?.split(' (')[0] ?? 'vehicle'} from{' '}
+              {SITES[mission.recommendedSite]?.name ?? mission.recommendedSite}. Or build your own.
             </div>
           </div>
         </div>

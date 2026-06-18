@@ -15,6 +15,7 @@ import EventLog from './ui/EventLog';
 import HudBar from './ui/HudBar';
 import ControlDock from './ui/ControlDock';
 import DataDrawer from './ui/DataDrawer';
+import StepNav from './ui/StepNav';
 
 function MissionBar() {
   const mission = useSimStore((s) => s.runtime?.mission ?? null);
@@ -46,7 +47,8 @@ function FlightDeck({ prelaunch }: { prelaunch: boolean }) {
         </div>
 
         {prelaunch ? (
-          <div className="absolute inset-0 flex items-start sm:items-center justify-center p-3 overflow-y-auto">
+          <div className="absolute inset-0 flex flex-col items-center justify-start sm:justify-center gap-2 p-3 overflow-y-auto">
+            <div className="w-full max-w-[440px]"><StepNav current="pad" /></div>
             <Countdown />
           </div>
         ) : (
