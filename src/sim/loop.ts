@@ -154,6 +154,7 @@ export function initFlight(
     lossDrag: 0,
     lossSteer: 0,
     dvExpended: 0,
+    flags: new Set<string>(),
   };
   state.mass = currentMass(state, runtime);
   return { runtime, state };
@@ -172,18 +173,11 @@ function propellantDensity(id: string): number {
   }
 }
 
-// Max-Q detection bookkeeping kept on the runtime-adjacent state via flags in SimState is
-// awkward; we track transient detection with module-local memory keyed per state object.
-const qPeakSeen = new WeakSet<SimState>();
-const eventFlags = new WeakMap<SimState, Set<string>>();
+// One-shot event flags live ON the state (state.flags) so they survive the store's shallow
+// `{...sim}` copies each frame. Returns true if the key was already set (event already fired).
 function flagged(state: SimState, key: string): boolean {
-  let s = eventFlags.get(state);
-  if (!s) {
-    s = new Set();
-    eventFlags.set(state, s);
-  }
-  if (s.has(key)) return true;
-  s.add(key);
+  if (state.flags.has(key)) return true;
+  state.flags.add(key);
   return false;
 }
 
@@ -213,8 +207,7 @@ export function stepFrame(
 
   // Max-Q event (once q has clearly peaked and we're supersonic-ish past it)
   const der = deriveTelemetry(state, rt);
-  if (!qPeakSeen.has(state) && der.q < state.maxQ * 0.92 && state.maxQ > 8e3 && der.altitude > 6e3) {
-    qPeakSeen.add(state);
+  if (der.q < state.maxQ * 0.92 && state.maxQ > 8e3 && der.altitude > 6e3 && !flagged(state, 'qpeak')) {
     events.push({ t: state.t, label: `Max-Q (${(state.maxQ / 1000).toFixed(1)} kPa)`, kind: 'info' });
   }
 

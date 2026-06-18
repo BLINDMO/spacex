@@ -137,6 +137,8 @@ export interface SimState {
   lossDrag: number;
   lossSteer: number;
   dvExpended: number; // total dv produced by engines so far
+  /** event-dedup flags carried with the state (survives shallow store copies) */
+  flags: Set<string>;
 }
 
 export interface DerivedTelemetry {
