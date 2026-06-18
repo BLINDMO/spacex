@@ -1,10 +1,9 @@
 name: Deploy to GitHub Pages
 
+# Manual-only: the active deployment is the `gh-pages` branch (served by GitHub's own Pages
+# builder, see scripts/deploy-pages.sh / `npm run deploy`). To use THIS Actions-based path
+# instead, set Settings → Pages → Source to "GitHub Actions" and run this workflow manually.
 on:
-  push:
-    branches:
-      - main
-      - claude/mission-control-simulator-9u5zpz
   workflow_dispatch:
 
 # Allow the workflow to publish to GitHub Pages.

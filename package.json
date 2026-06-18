@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "simtest": "tsx src/sim/simtest.ts"
+    "simtest": "tsx src/sim/simtest.ts",
+    "deploy": "bash scripts/deploy-pages.sh"
   },
   "dependencies": {
     "@react-three/drei": "^9.114.0",
