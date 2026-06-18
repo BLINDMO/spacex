@@ -16,6 +16,7 @@ import HudBar from './ui/HudBar';
 import ControlDock from './ui/ControlDock';
 import DataDrawer from './ui/DataDrawer';
 import StepNav from './ui/StepNav';
+import GuidanceCue from './ui/GuidanceCue';
 
 function MissionBar() {
   const mission = useSimStore((s) => s.runtime?.mission ?? null);
@@ -53,30 +54,35 @@ function FlightDeck({ prelaunch }: { prelaunch: boolean }) {
           </div>
         ) : (
           <>
-            {/* Desktop instrument columns */}
-            <div className="hidden md:flex absolute top-0 left-0 h-full w-[300px] flex-col gap-px overflow-y-auto bg-panel/70 border-r border-edge">
+            {/* Coached flight-director cue (leaves room for the DATA toggle on mobile) */}
+            <div className="absolute top-0 left-0 right-14 lg:left-[300px] lg:right-[320px] z-10">
+              <GuidanceCue />
+            </div>
+
+            {/* Desktop instrument columns (only on genuinely large screens) */}
+            <div className="hidden lg:flex absolute top-0 left-0 h-full w-[300px] flex-col gap-px overflow-y-auto bg-panel/70 border-r border-edge">
               <AttitudeIndicator />
               <Telemetry />
               <DvBudget />
             </div>
-            <div className="hidden md:flex absolute top-0 right-0 h-full w-[320px] flex-col gap-px overflow-y-auto bg-panel/70 border-l border-edge">
+            <div className="hidden lg:flex absolute top-0 right-0 h-full w-[320px] flex-col gap-px overflow-y-auto bg-panel/70 border-l border-edge">
               <StageBoard />
               <StripCharts />
               <EventLog />
             </div>
 
-            {/* Mobile: floating DATA toggle */}
+            {/* Mobile/tablet: floating DATA toggle */}
             <button
               onClick={() => setDrawer(true)}
-              className="md:hidden dock-btn absolute top-2 right-2 z-20 border-accent/60 text-accent bg-panel/90"
+              className="lg:hidden dock-btn absolute top-2 right-2 z-20 border-accent/60 text-accent bg-panel/90"
             >
               DATA ▾
             </button>
 
-            {drawer && <div className="md:hidden"><DataDrawer onClose={() => setDrawer(false)} /></div>}
+            {drawer && <div className="lg:hidden"><DataDrawer onClose={() => setDrawer(false)} /></div>}
 
-            {/* Control dock: bottom bar on desktop (between columns), full-width on mobile */}
-            <div className="absolute bottom-0 left-0 right-0 md:left-[300px] md:right-[320px] z-20">
+            {/* Control dock: bottom bar between columns on desktop, full-width on mobile */}
+            <div className="absolute bottom-0 left-0 right-0 lg:left-[300px] lg:right-[320px] z-20">
               <ControlDock />
             </div>
           </>

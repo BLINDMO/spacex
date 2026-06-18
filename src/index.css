@@ -13,6 +13,14 @@ body,
   margin: 0;
 }
 
+/* Never let content widen the layout viewport on mobile (prevents iOS Safari from
+   zooming the whole page out to fit an over-wide layout). */
+html,
+body {
+  overflow-x: hidden;
+  max-width: 100%;
+}
+
 body {
   background: #05070a;
   color: #c7d2da;

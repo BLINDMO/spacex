@@ -37,7 +37,7 @@ export default function MissionSelect() {
         <div className="ml-auto"><StepNav current="mission" /></div>
       </div>
 
-      <div className="grid flex-1 grid-cols-1 md:grid-cols-[340px_1fr] gap-px bg-edge">
+      <div className="grid flex-1 grid-cols-1 lg:grid-cols-[340px_1fr] gap-px bg-edge">
         {/* Mission list */}
         <div className="flex flex-col bg-panel">
           <div className="border-b border-edge px-3 py-2 text-[10px] tracking-[0.2em] text-dim">
@@ -52,32 +52,23 @@ export default function MissionSelect() {
                   key={m.id}
                   type="button"
                   onClick={() => selectMission(m.id)}
-                  className={`flex flex-col gap-1 border-b border-grid px-3 py-2 text-left transition-colors hover:bg-panel2 ${
-                    sel ? 'border-l-2 border-l-accent bg-panel2' : 'border-l-2 border-l-transparent'
+                  className={`flex items-center gap-3 border-b border-grid px-4 py-3 text-left transition-colors active:bg-panel3 hover:bg-panel2 ${
+                    sel ? 'border-l-[3px] border-l-accent bg-panel2' : 'border-l-[3px] border-l-transparent'
                   }`}
                 >
-                  <div className="flex items-center justify-between">
-                    <span className={`text-[12px] ${sel ? 'text-accent' : 'text-ink'}`}>
-                      {m.name}
-                    </span>
-                    <div className="flex items-center gap-1">
-                      {m.tutorial && (
-                        <span className="border border-edge px-1 text-[8px] tracking-[0.15em] text-amber">
-                          TUTORIAL
-                        </span>
-                      )}
-                      {m.crewed && (
-                        <span className="border border-edge px-1 text-[8px] tracking-[0.15em] text-go">
-                          CREW
-                        </span>
-                      )}
+                  <MissionGlyph mission={m} active={sel} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className={`text-sm truncate ${sel ? 'text-accent' : 'text-ink'}`}>{m.name}</span>
+                      <div className="flex shrink-0 items-center gap-1">
+                        {m.tutorial && <span className="border border-edge px-1 text-[8px] tracking-[0.15em] text-amber">TUT</span>}
+                        {m.crewed && <span className="border border-edge px-1 text-[8px] tracking-[0.15em] text-go">CREW</span>}
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex items-center justify-between text-[9px] text-dim">
-                    <span>
-                      {dist(m.targetApoapsis)} × {num(m.targetInclination, 1)}°
-                    </span>
-                    {ms && <span className="tnum text-go">BEST {num(ms.total, 0)}</span>}
+                    <div className="mt-0.5 flex items-center justify-between text-[10px] text-dim">
+                      <span className="truncate">{dist(m.targetApoapsis)} × {num(m.targetInclination, 1)}°</span>
+                      {ms && <span className="tnum shrink-0 text-go">BEST {num(ms.total, 0)}</span>}
+                    </div>
                   </div>
                 </button>
               );
@@ -88,15 +79,16 @@ export default function MissionSelect() {
         {/* Briefing */}
         <div className="flex flex-col gap-px overflow-auto bg-edge">
           <div className="bg-panel p-4">
-            <div className="mb-1 flex items-center gap-2">
+            <div className="mb-2 flex items-center gap-2">
               <h2 className="text-lg tracking-[0.1em] text-ink">{mission.name}</h2>
               {mission.tutorial && (
-                <span className="border border-edge px-1 text-[9px] tracking-[0.2em] text-amber">
-                  TUTORIAL
-                </span>
+                <span className="border border-edge px-1 text-[9px] tracking-[0.2em] text-amber">TUTORIAL</span>
               )}
             </div>
-            <p className="max-w-3xl text-[12px] leading-relaxed text-dim">{mission.summary}</p>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <MiniOrbit mission={mission} />
+              <p className="flex-1 text-[12.5px] leading-relaxed text-dim">{mission.summary}</p>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-px bg-edge md:grid-cols-3">
@@ -181,6 +173,57 @@ export default function MissionSelect() {
         </div>
       </div>
     </div>
+  );
+}
+
+// log-scaled orbit radius (scene px) from an apsis altitude — keeps LEO..lunar all on screen
+function orbitR(earthR: number, altM: number, span: number): number {
+  const km = Math.max(0, altM) / 1000;
+  return earthR + 4 + span * Math.min(1, Math.log10(1 + km / 150) / Math.log10(1 + 400000 / 150));
+}
+
+/** Tiny per-mission orbit glyph shown on each manifest card. */
+function MissionGlyph({ mission, active }: { mission: (typeof MISSION_LIST)[number]; active: boolean }) {
+  const c = 17;
+  const er = 6;
+  const rA = orbitR(er, mission.targetApoapsis, 9);
+  const rP = orbitR(er, mission.targetPeriapsis, 9);
+  const col = active ? '#39c0d6' : '#6b7c88';
+  return (
+    <svg width="34" height="34" viewBox="0 0 34 34" className="shrink-0">
+      <circle cx={c} cy={c} r={er} fill="#16323f" stroke="#2a3742" />
+      <ellipse cx={c} cy={c} rx={(rA + rP) / 2} ry={rP} fill="none" stroke={col} strokeWidth="1.2" opacity="0.9" />
+    </svg>
+  );
+}
+
+/** Larger target-orbit diagram for the briefing: Earth + the target ellipse + apsis markers. */
+function MiniOrbit({ mission }: { mission: (typeof MISSION_LIST)[number] }) {
+  const S = 116;
+  const c = S / 2;
+  const er = 16;
+  const span = 36;
+  const rA = orbitR(er, mission.targetApoapsis, span);
+  const rP = orbitR(er, mission.targetPeriapsis, span);
+  const rx = (rA + rP) / 2;
+  const cx = c - (rA - rP) / 2; // offset so Earth sits at a focus-ish point
+  return (
+    <svg width={S} height={S} viewBox={`0 0 ${S} ${S}`} className="shrink-0 self-center rounded border border-edge bg-[#070b0f]">
+      <defs>
+        <radialGradient id="eg" cx="40%" cy="40%">
+          <stop offset="0%" stopColor="#1d4a63" />
+          <stop offset="100%" stopColor="#0c2230" />
+        </radialGradient>
+      </defs>
+      <ellipse cx={cx} cy={c} rx={rx} ry={rP} fill="none" stroke="#39c0d6" strokeWidth="1.4" opacity="0.9" />
+      <circle cx={c} cy={c} r={er} fill="url(#eg)" stroke="#2a3742" />
+      {/* apsis markers */}
+      <circle cx={cx - rx} cy={c} r="2.2" fill="#e0a020" />
+      <circle cx={cx + rx} cy={c} r="2.2" fill="#35c66b" />
+      <text x={c} y={S - 5} textAnchor="middle" fontSize="8" fill="#6b7c88" fontFamily="monospace">
+        {num(mission.targetInclination, 1)}° INC
+      </text>
+    </svg>
   );
 }
 
